@@ -1,0 +1,42 @@
+echo "_____________"
+echo "===[Audit]==="
+echo "-------------"
+echo
+echo "_________________"
+echo "===[No d'hôte]==="
+echo "-----------------"
+hostname
+echo
+echo "________________________"
+echo "===[Version de noyau]==="
+echo "------------------------"
+uname -r
+echo
+echo "____________"
+echo "===[Date]==="
+echo "------------"
+date
+echo
+echo "______________"
+echo "===[Auteur]==="
+echo "--------------"
+whoami
+echo
+echo "___________________________"
+echo "===[Nombre de processus]==="
+echo "---------------------------"
+ps -e | wc -l
+echo
+echo "__________________"
+echo "===[Detail RAM]==="
+echo "------------------"
+free -h
+echo
+echo "_______________________"
+echo "===[Detail stockage]==="
+echo "-----------------------"
+df -h
+echo
+echo "_________________"
+echo "===[Terminé !]==="
+echo "-----------------"
