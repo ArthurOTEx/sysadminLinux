@@ -1,32 +1,66 @@
 #!/bin/bash
 
+user="alice"
+pass="jose"
+
+useradd ${user} -m -s /bin/bash
+echo ${user}:${pass} | chpasswd 2>/dev/null
+
 echo "Téléchargement et installation de la dernière version de wordpress"
 echo
+
 # Téléchargement de wordpress français lastest
-cd /var/www
+cd /tmp
 rm -f latest-fr_FR.zip
 wget https://fr.wordpress.org/latest-fr_FR.zip
 
 # Installation de wordpress
 unzip -q -o latest-fr_FR.zip
 
+# Installation du site de l'utilisateur
+mv wordpress /var/www/${user}
+
+# On se déplace dans /var/www
+cd /var/www
+
 # Changement propriétaire wordpress
-chown -R www-data:www-data wordpress
+chown -R ${user}:${user} ${user}
 
-# Ecriture du virtual host Apache
+# Ecriture du virtual host Apache wordpress
 
-cat > /etc/apache2/sites-available/wordpress.conf << EOF
+cat > /etc/apache2/sites-available/${user}.conf << EOF
 <VirtualHost *:80>
-	ServerName wordpress.arthur.lan
-	DocumentRoot /var/www/wordpress
-	<Directory /var/www/wordpress>
+	ServerName ${user}.arthur.lan
+	DocumentRoot /var/www/${user}
+	<Directory /var/www/${user}>
 		AllowOverride All
 	</Directory>
+	RewriteEngine On
+	RewriteCond %{HTTPS} off
+	RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI}
+</VirtualHost>
+EOF
+
+# Ecriture du virtual host Apache wordpress-ssl
+
+cat > /etc/apache2/sites-available/${user}-ssl.conf << EOF
+<VirtualHost *:443>
+	ServerName ${user}.arthur.lan
+	DocumentRoot /var/www/${user}
+	<Directory /var/www/${user}>
+		AllowOverride All
+	</Directory>
+	SSLEngine on
+	SSLCertificateFile      /etc/apache2/apache.pem
+	SSLCertificateKeyFile   /etc/apache2/apache.key
 </VirtualHost>
 EOF
 
 # activation du virtalhost wordpress
-a2ensite wordpress > /dev/null
+a2ensite ${user} > /dev/null
+
+# activation du virtalhost ssl-wordpress
+a2ensite ${user}-ssl > /dev/null
 
 # Rechargement de Apache
 systemctl reload apache2
@@ -34,12 +68,35 @@ systemctl reload apache2
 # Création de la base de données wordpress
 
 mariadb << EOF
-create database if not exists wordpress;
-create user if not exists wordpress@localhost identified by "secret";
-grant all privileges on wordpress.* to wordpress@localhost;
+create database if not exists ${user};
+create user if not exists ${user}@localhost identified by "${pass}";
+grant all privileges on ${user}.* to ${user}@localhost;
 flush privileges;
 EOF
 
-# Fin de l'installation
-echo "L'installation de votre site wordpress est terminée et doit être finalisé sur http://wordpress.arthur.lan"
+# Remplissage du fichier wp-config.php
+cp ${user}/wp-config-sample.php ${user}/wp-config.php
+sed -i "s/database_name_here/${user}/" ${user}/wp-config.php
+sed -i "s/username_here/${user}/" ${user}/wp-config.php
+sed -i "s/password_here/${pass}/" ${user}/wp-config.php
 
+# Ajout cname dynamique
+nsupdate << EOF
+server 127.0.0.1
+zone arthur.lan
+update add ${user}.arthur.lan. 604800 in cname debian.arthur.lan.
+send
+EOF
+
+# Fin de l'installation
+mail ${user}@arthur.lan -s "Votre site Wordpress" << EOF
+bonjour,
+
+L'installation de votre site wordpress est terminée et doit être finalisé sur http://${user}.arthur.lan
+
+Vous avez accès à vos mails sur https://${user}.arthur.lan/roundcube et à votre base de données sur https://${user}.arthur.lan/phpmyadmin
+
+login: ${user}
+Mot de passe: ${pass}
+Cordialement
+EOF
